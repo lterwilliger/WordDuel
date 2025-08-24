@@ -472,6 +472,24 @@ function backToLobby() {
     updateUI();
 }
 
+// Helper functions for button state management
+function canStartDuel() {
+  return gameState.phase === 'setup'
+      && !!gameState.mySecretWord
+      && !gameState.wordSubmitted;
+}
+
+function applyStartButtonState() {
+  if (!elements.startGameBtn) return;
+  elements.startGameBtn.disabled = !canStartDuel();
+  const theme = THEMES[gameState.themeIndex] || THEMES[0];
+  if (gameState.wordSubmitted) {
+    elements.startGameBtn.textContent = 'Waiting for opponent...';
+  } else {
+    elements.startGameBtn.textContent = theme.duelBtn;
+  }
+}
+
 // Game state management
 function updateGameState(state) {
     console.log('=== Game state update ===');
@@ -497,8 +515,9 @@ function updateGameState(state) {
         gameState.myHasWon = currentPlayer.hasWon;
         gameState.isRoomCreator = currentPlayer.isCreator;
         
-        // Reset word selection if server says we haven't submitted yet
-        if (currentPlayer.secretWord === null) {
+        // Preserve local selection during setup: the server will keep secretWord null
+        // until we emit set_secret_word. Only clear outside of setup, e.g., on restart.
+        if (state.phase !== 'setup' && currentPlayer.secretWord === null) {
             gameState.mySecretWord = null;
             gameState.wordSubmitted = false;
         }
@@ -514,11 +533,16 @@ function updateGameState(state) {
     if (gameState.phase === 'setup') {
         gameState.myGuessFeedbacks = [];
         gameState.opponentGuessFeedbacks = [];
-        // Don't reset word selection here - let the server state determine it
+        // Clear word selection on new game (when coming from results)
+        if (prevPhase === 'results') {
+            gameState.mySecretWord = null;
+            gameState.wordSubmitted = false;
+        }
     }
     
     // Always update opponent status when game state changes
     updateOpponentStatus();
+    if (gameState.phase === 'setup') applyStartButtonState();
     
     // Check if we've moved to a new round (round number increased)
     if (state.round > previousRound && prevPhase === 'game') {
@@ -765,26 +789,9 @@ function updateSetupPhase() {
     
     // Find current player in server state
     const myPlayer = gameState.players.find(p => p.id === socket.id);
-    // Check if both players have selected words
-    const bothPlayersHaveWords = gameState.players.length === 2 && 
-        gameState.players.every(p => p.secretWord !== null);
-    // Enable if: word selected, not submitted, and phase is setup
-    // Don't require both players to have words - let server handle that
-    const buttonShouldBeEnabled = !!gameState.mySecretWord && !gameState.wordSubmitted && gameState.phase === 'setup';
-    elements.startGameBtn.disabled = !buttonShouldBeEnabled;
-    
-    // Update button text based on state
-    if (gameState.wordSubmitted) {
-        elements.startGameBtn.textContent = 'Waiting for opponent...';
-    } else if (gameState.mySecretWord) {
-        const theme = THEMES[gameState.themeIndex];
-        elements.startGameBtn.textContent = theme.duelBtn;
-    } else {
-        const theme = THEMES[gameState.themeIndex];
-        elements.startGameBtn.textContent = theme.duelBtn;
-    }
     
     updateOpponentStatus();
+    applyStartButtonState();
 }
 
 function updateGamePhase() {
@@ -916,26 +923,11 @@ function selectWord(word) {
     
     // Find current player in server state
     const myPlayer = gameState.players.find(p => p.id === socket.id);
-    // Check if both players have selected words
-    const bothPlayersHaveWords = gameState.players.length === 2 && 
-        gameState.players.every(p => p.secretWord !== null);
-    // Enable if: word selected, not submitted, and phase is setup
-    // Don't require both players to have words - let server handle that
-    const buttonShouldBeEnabled = !!gameState.mySecretWord && !gameState.wordSubmitted && gameState.phase === 'setup';
-    elements.startGameBtn.disabled = !buttonShouldBeEnabled;
-    
-    // Update button text based on state
-    if (gameState.wordSubmitted) {
-        elements.startGameBtn.textContent = 'Waiting for opponent...';
-    } else if (gameState.mySecretWord) {
-        const theme = THEMES[gameState.themeIndex];
-        elements.startGameBtn.textContent = theme.duelBtn;
-    } else {
-        const theme = THEMES[gameState.themeIndex];
-        elements.startGameBtn.textContent = theme.duelBtn;
-    }
     
     updateOpponentStatus();
+    // Selecting a word means the player can try to start (until they submit)
+    gameState.wordSubmitted = false;
+    applyStartButtonState();
 }
 
 // Game actions
@@ -969,10 +961,9 @@ function startGame() {
     console.log('Emitting set_secret_word with word:', gameState.mySecretWord);
     socket.emit('set_secret_word', { word: gameState.mySecretWord });
     
-    // Mark word as submitted and disable button
+    // Mark word as submitted and update button state
     gameState.wordSubmitted = true;
-    elements.startGameBtn.disabled = true;
-    elements.startGameBtn.textContent = 'Waiting for opponent...';
+    applyStartButtonState();
     
     // Save state to sessionStorage
     saveLocalState();
@@ -1218,27 +1209,17 @@ function showPhase(phase) {
 }
 
 function createKeyboard() {
-    const rows = [
-        ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
-        ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
-        ['Z', 'X', 'C', 'V', 'B', 'N', 'M']
-    ];
+    // responsive: grid layout instead of rows
+    const letters = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Z', 'X', 'C', 'V', 'B', 'N', 'M'];
     
-    rows.forEach(row => {
-        const rowElement = document.createElement('div');
-        rowElement.className = 'keyboard-row';
+    letters.forEach(letter => {
+        const key = document.createElement('button');
+        key.className = 'key';
+        key.textContent = letter;
+        key.dataset.letter = letter;
         
-        row.forEach(letter => {
-            const key = document.createElement('button');
-            key.className = 'key';
-            key.textContent = letter;
-            key.dataset.letter = letter;
-            
-            key.addEventListener('click', () => handleKeyClick(letter));
-            rowElement.appendChild(key);
-        });
-        
-        elements.keyboard.appendChild(rowElement);
+        key.addEventListener('click', () => handleKeyClick(letter));
+        elements.keyboard.appendChild(key);
     });
 }
 
