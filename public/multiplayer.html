@@ -7,6 +7,9 @@
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Medieval+Sharp:wght@400;700&display=swap" rel="stylesheet">
     <script src="/socket.io/socket.io.js"></script>
+    <script src="words-medieval.js"></script>
+    <script src="words-scifi.js"></script>
+    <script src="words-standard.js"></script>
 </head>
 <body>
     <!-- Game Mode Selection Screen -->
@@ -92,6 +95,7 @@
             <div class="room-info">
                 <span>Room: <span id="room-display"></span></span>
             </div>
+            <div id="room-total-score" class="room-total-score"></div>
         </div>
         <header class="castle-header">
             <div class="header-title-group">
@@ -219,6 +223,6 @@
         </div>
     </div>
 
-    <script src="multiplayer.js" type="module"></script>
+    <script src="multiplayer.js"></script>
 </body>
 </html> 

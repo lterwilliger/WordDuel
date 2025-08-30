@@ -1,8 +1,3 @@
-// Import word lists
-import { MEDIEVAL_WORDS } from './words-medieval.js';
-import { SCIFI_WORDS } from './words-scifi.js';
-import { STANDARD_WORDS } from './words-standard.js';
-
 // Socket.io connection
 const socket = io();
 
@@ -1386,6 +1381,7 @@ function updateKeyboardColors() {
 }
 
 function updateRoomTotalScore() {
+    const roomScoreDiv = document.getElementById('room-total-score');
     if (!roomScoreDiv) return;
     if (!gameState.players || gameState.players.length < 1) {
         roomScoreDiv.style.display = 'none';
@@ -1425,21 +1421,14 @@ function createKeyboard() {
     // responsive: grid layout instead of rows
     const letters = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Z', 'X', 'C', 'V', 'B', 'N', 'M'];
     
-    rows.forEach(row => {
-        const rowElement = document.createElement('div');
-        rowElement.className = 'keyboard-row';
+    letters.forEach(letter => {
+        const key = document.createElement('button');
+        key.className = 'key';
+        key.textContent = letter;
+        key.dataset.letter = letter;
         
-        row.forEach(letter => {
-            const key = document.createElement('button');
-            key.className = 'key';
-            key.textContent = letter;
-            key.dataset.letter = letter;
-            
-            key.addEventListener('click', () => handleKeyClick(letter));
-            rowElement.appendChild(key);
-        });
-        
-        elements.keyboard.appendChild(rowElement);
+        key.addEventListener('click', () => handleKeyClick(letter));
+        elements.keyboard.appendChild(key);
     });
 }
 
@@ -1502,24 +1491,7 @@ function updateRoomJoinThemeUI() {
     }
 }
 
-// Create the roomScoreDiv ONCE and insert after .room-info or #room-display on DOMContentLoaded
-let roomScoreDiv;
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize the game
     init();
-    // Create and insert the running total score box
-    roomScoreDiv = document.createElement('div');
-    roomScoreDiv.id = 'room-total-score';
-    roomScoreDiv.style = 'background: rgba(255,255,255,0.1); color: var(--color-secondary); font-size: 1rem; font-weight: 600; border-radius: 8px; padding: 8px 12px; margin: 8px 0 0 0; text-align: left; min-width: 120px;';
-    // Try to insert after .room-info
-    const roomInfo = document.querySelector('.room-info');
-    if (roomInfo && roomInfo.parentNode) {
-        roomInfo.parentNode.insertBefore(roomScoreDiv, roomInfo.nextSibling);
-    } else {
-        // Fallback: insert after #room-display
-        const roomDisplay = document.getElementById('room-display');
-        if (roomDisplay && roomDisplay.parentNode) {
-            roomDisplay.parentNode.insertBefore(roomScoreDiv, roomDisplay.nextSibling);
-        }
-    }
 }); 

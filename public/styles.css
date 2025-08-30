@@ -2209,3 +2209,16 @@ button:hover, .primary-btn:hover, .secondary-btn:hover, .medieval-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 18px rgba(0,0,0,0.25);
 }
+
+/* Room total score styling */
+.room-total-score {
+  background: rgba(255,255,255,0.1);
+  color: var(--color-secondary);
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 8px 0 0 0;
+  text-align: left;
+  min-width: 120px;
+}
