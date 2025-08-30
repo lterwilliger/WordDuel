@@ -2209,7 +2209,6 @@ button:hover, .primary-btn:hover, .secondary-btn:hover, .medieval-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 18px rgba(0,0,0,0.25);
 }
-
 /* Room total score styling */
 .room-total-score {
   background: rgba(255,255,255,0.1);

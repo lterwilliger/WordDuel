@@ -482,158 +482,40 @@ function generateRoomCode() {
 }
 
 function backToLobby() {
-    try {
-        // Prevent multiple clicks
-        if (gameState.waitingForLeaveConfirmation) {
-            return;
-        }
-        
-        // Store current theme before resetting
-        const currentThemeIndex = gameState.themeIndex;
-        
-        // Disable the back to lobby button to prevent multiple clicks
-        if (elements.backToLobbyBtn) {
-            elements.backToLobbyBtn.disabled = true;
-            elements.backToLobbyBtn.textContent = 'Leaving...';
-        }
-        
-        // Leave current room if in one
-        if (gameState.roomId) {
-            socket.emit('leave_room');
-            // Wait for server confirmation instead of arbitrary timeout
-            gameState.waitingForLeaveConfirmation = true;
-        } else {
-            completeBackToLobby(currentThemeIndex);
-        }
-    } catch (error) {
-        console.error('Error in backToLobby:', error);
-        // Fallback: try to complete the process anyway
-        const currentThemeIndex = gameState.themeIndex || 0;
-        completeBackToLobby(currentThemeIndex);
+    // Leave current room if in one
+    if (gameState.roomId) {
+        socket.emit('leave_room');
     }
-}
-
-function completeBackToLobby(themeIndex) {
-    try {
-        // Reset game state but preserve theme preference
-        gameState = {
-            roomId: null,
-            playerName: null,
-            themeIndex: themeIndex, // Preserve theme selection
-            phase: 'lobby',
-            players: [],
-            round: 1,
-            maxRounds: 6,
-            currentRoundGuesses: 0,
-            gameComplete: false,
-            mySecretWord: null,
-            myGuesses: [],
-            opponentGuesses: [],
-            roundResults: null,
-            isRoomCreator: false,
-            myGuessFeedbacks: [],
-            opponentGuessFeedbacks: [],
-            wordSubmitted: false,
-            waitingForLeaveConfirmation: false
-        };
-        
-        // Clear any locked inputs
-        if (elements.guessInput) {
-            elements.guessInput.classList.remove('locked');
-            elements.guessInput.readOnly = false;
-            elements.guessInput.disabled = false;
-        }
-        if (elements.submitGuessBtn) {
-            elements.submitGuessBtn.disabled = false;
-        }
-        
-        // Restore back to lobby button state
-        if (elements.backToLobbyBtn) {
-            elements.backToLobbyBtn.disabled = false;
-            elements.backToLobbyBtn.textContent = 'Back to Lobby';
-        }
-        
-        // Restore theme selection UI
-        restoreThemeSelection(themeIndex);
-        
-        // Go back to room join screen
-        showScreen('room-join');
-        updateUI();
-    } catch (error) {
-        console.error('Error in completeBackToLobby:', error);
-        // Fallback: try to show the room join screen anyway
-        try {
-            showScreen('room-join');
-        } catch (fallbackError) {
-            console.error('Fallback error:', fallbackError);
-        }
-    }
-}
-
-function restoreThemeSelection(themeIndex) {
-    try {
-        // Restore theme selection radio button
-        const themeRadios = document.querySelectorAll('input[name="theme-radio-join"]');
-        if (themeRadios[themeIndex]) {
-            themeRadios[themeIndex].checked = true;
-        }
-        
-        // Apply the theme immediately
-        const theme = THEMES[themeIndex];
-        if (theme) {
-            applyTheme(theme);
-        }
-        
-        // Update the theme selection UI visibility based on whether user will be creator
-        // When going back to lobby, we don't know yet if they'll be creator, so show it
-        const themeSelectionJoin = document.getElementById('theme-selection-join');
-        if (themeSelectionJoin) {
-            themeSelectionJoin.style.display = '';
-        }
-        
-        // Ensure theme selection event listeners are properly set up
-        themeRadios.forEach((radio, idx) => {
-            // Remove existing listeners to prevent duplicates
-            if (radio._themeChangeHandler) {
-                radio.removeEventListener('change', radio._themeChangeHandler);
-            }
-            
-            // Add new listener
-            radio._themeChangeHandler = () => {
-                const selectedTheme = THEMES[idx];
-                if (selectedTheme) {
-                    gameState.themeIndex = idx;
-                    applyTheme(selectedTheme);
-                }
-            };
-            radio.addEventListener('change', radio._themeChangeHandler);
-        });
-    } catch (error) {
-        console.error('Error in restoreThemeSelection:', error);
-        // Fallback: just apply the theme
-        const theme = THEMES[themeIndex];
-        if (theme) {
-            applyTheme(theme);
-        }
-    }
-}
-
-// Helper functions for button state management
-function canStartDuel() {
-  return gameState.phase === 'setup'
-      && !!gameState.mySecretWord
-      && !gameState.wordSubmitted;
-}
-
-function applyStartButtonState() {
-  if (!elements.startGameBtn) return;
-  elements.startGameBtn.disabled = !canStartDuel();
-  const theme = THEMES[gameState.themeIndex] || THEMES[0];
-  if (gameState.wordSubmitted) {
-    elements.startGameBtn.textContent = 'Waiting for opponent...';
-  } else {
-    elements.startGameBtn.textContent = theme.duelBtn;
-  }
+    
+    // Reset game state
+    gameState = {
+        roomId: null,
+        playerName: null,
+        themeIndex: 0,
+        phase: 'lobby',
+        players: [],
+        round: 1,
+        maxRounds: 6,
+        currentRoundGuesses: 0,
+        gameComplete: false,
+        mySecretWord: null,
+        myGuesses: [],
+        opponentGuesses: [],
+        roundResults: null,
+        isRoomCreator: false,
+        myGuessFeedbacks: [],
+        opponentGuessFeedbacks: []
+    };
+    
+    // Clear any locked inputs
+    elements.guessInput.classList.remove('locked');
+    elements.guessInput.readOnly = false;
+    elements.guessInput.disabled = false;
+    elements.submitGuessBtn.disabled = false;
+    
+    // Go back to room join screen
+    showScreen('room-join');
+    updateUI();
 }
 
 // Game state management
@@ -661,8 +543,9 @@ function updateGameState(state) {
         gameState.myHasWon = currentPlayer.hasWon;
         gameState.isRoomCreator = currentPlayer.isCreator;
         
-        // Reset word selection if server says we haven't submitted yet
-        if (currentPlayer.secretWord === null) {
+        // Preserve local selection during setup: the server will keep secretWord null
+        // until we emit set_secret_word. Only clear outside of setup, e.g., on restart.
+        if (state.phase !== 'setup' && currentPlayer.secretWord === null) {
             gameState.mySecretWord = null;
             gameState.wordSubmitted = false;
         }
@@ -678,11 +561,16 @@ function updateGameState(state) {
     if (gameState.phase === 'setup') {
         gameState.myGuessFeedbacks = [];
         gameState.opponentGuessFeedbacks = [];
-        // Don't reset word selection here - let the server state determine it
+        // Clear word selection on new game (when coming from results)
+        if (prevPhase === 'results') {
+            gameState.mySecretWord = null;
+            gameState.wordSubmitted = false;
+        }
     }
     
     // Always update opponent status when game state changes
     updateOpponentStatus();
+    if (gameState.phase === 'setup') applyStartButtonState();
     
     // Check if we've moved to a new round (round number increased)
     if (state.round > previousRound && prevPhase === 'game') {
@@ -741,6 +629,21 @@ function resetInputState() {
         }
         if (elements.submitGuessBtn) elements.submitGuessBtn.disabled = false;
         if (elements.roundStatus) elements.roundStatus.textContent = 'Enter your guess below';
+    }
+}
+
+function applyStartButtonState() {
+    if (!elements.startGameBtn) return;
+    
+    const theme = THEMES[gameState.themeIndex];
+    if (!theme) return;
+    
+    if (gameState.mySecretWord && !gameState.wordSubmitted) {
+        elements.startGameBtn.disabled = false;
+        elements.startGameBtn.textContent = theme.duelBtn;
+    } else {
+        elements.startGameBtn.disabled = true;
+        elements.startGameBtn.textContent = theme.duelBtn;
     }
 }
 
@@ -939,26 +842,9 @@ function updateSetupPhase() {
     
     // Find current player in server state
     const myPlayer = gameState.players.find(p => p.id === socket.id);
-    // Check if both players have selected words
-    const bothPlayersHaveWords = gameState.players.length === 2 && 
-        gameState.players.every(p => p.secretWord !== null);
-    // Enable if: word selected, not submitted, and phase is setup
-    // Don't require both players to have words - let server handle that
-    const buttonShouldBeEnabled = !!gameState.mySecretWord && !gameState.wordSubmitted && gameState.phase === 'setup';
-    elements.startGameBtn.disabled = !buttonShouldBeEnabled;
-    
-    // Update button text based on state
-    if (gameState.wordSubmitted) {
-        elements.startGameBtn.textContent = 'Waiting for opponent...';
-    } else if (gameState.mySecretWord) {
-        const theme = THEMES[gameState.themeIndex];
-        elements.startGameBtn.textContent = theme.duelBtn;
-    } else {
-        const theme = THEMES[gameState.themeIndex];
-        elements.startGameBtn.textContent = theme.duelBtn;
-    }
     
     updateOpponentStatus();
+    applyStartButtonState();
 }
 
 function updateGamePhase() {
@@ -1102,26 +988,11 @@ function selectWord(word) {
     
     // Find current player in server state
     const myPlayer = gameState.players.find(p => p.id === socket.id);
-    // Check if both players have selected words
-    const bothPlayersHaveWords = gameState.players.length === 2 && 
-        gameState.players.every(p => p.secretWord !== null);
-    // Enable if: word selected, not submitted, and phase is setup
-    // Don't require both players to have words - let server handle that
-    const buttonShouldBeEnabled = !!gameState.mySecretWord && !gameState.wordSubmitted && gameState.phase === 'setup';
-    elements.startGameBtn.disabled = !buttonShouldBeEnabled;
-    
-    // Update button text based on state
-    if (gameState.wordSubmitted) {
-        elements.startGameBtn.textContent = 'Waiting for opponent...';
-    } else if (gameState.mySecretWord) {
-        const theme = THEMES[gameState.themeIndex];
-        elements.startGameBtn.textContent = theme.duelBtn;
-    } else {
-        const theme = THEMES[gameState.themeIndex];
-        elements.startGameBtn.textContent = theme.duelBtn;
-    }
     
     updateOpponentStatus();
+    // Selecting a word means the player can try to start (until they submit)
+    gameState.wordSubmitted = false;
+    applyStartButtonState();
 }
 
 // Game actions
@@ -1155,10 +1026,9 @@ function startGame() {
     console.log('Emitting set_secret_word with word:', gameState.mySecretWord);
     socket.emit('set_secret_word', { word: gameState.mySecretWord });
     
-    // Mark word as submitted and disable button
+    // Mark word as submitted and update button state
     gameState.wordSubmitted = true;
-    elements.startGameBtn.disabled = true;
-    elements.startGameBtn.textContent = 'Waiting for opponent...';
+    applyStartButtonState();
     
     // Save state to sessionStorage
     saveLocalState();
