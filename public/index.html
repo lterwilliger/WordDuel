@@ -2,14 +2,15 @@
 <html lang="en" translate="no">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>WordDuel - Medieval Jousting</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Medieval+Sharp:wght@400;700&display=swap" rel="stylesheet">
 </head>
 <body>
     <!-- Theme Selection Screen -->
-    <div id="theme-select-screen" class="container">
+    <div class="page">
+        <div id="theme-select-screen" class="container">
         <h1 class="title">WordDuel</h1>
         <div id="theme-preview" style="text-align:center; margin-bottom:16px;"></div>
         <div id="theme-options" style="display: flex; gap: 24px; justify-content: center; margin: 20px 0;">
@@ -38,9 +39,11 @@
         <div style="text-align:center; margin-top:24px;">
             <button id="theme-continue-btn" class="primary-btn" type="button">Continue</button>
         </div>
+        </div>
     </div>
     <!-- Game UI (hidden by default) -->
-    <div id="game-root" class="container" style="display:none;">
+    <div class="page">
+        <div id="game-root" class="container" style="display:none;">
         <header class="castle-header">
             <div class="header-title-group" style="align-items: center; width: 100%;">
                 <h1 class="title">⚔️ WordDuel ⚔️ <span id="theme-name" style="font-size:1.1rem;margin-left:8px;"></span></h1>
@@ -137,6 +140,7 @@
                 </div>
                 <button id="play-again" class="primary-btn">⚔️ Another Duel! ⚔️</button>
             </div>
+        </div>
         </div>
     </div>
     <!-- Stats Modal -->

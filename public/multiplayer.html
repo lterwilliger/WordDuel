@@ -10,69 +10,77 @@
 </head>
 <body>
     <!-- Game Mode Selection Screen -->
-    <div id="mode-select-screen" class="container">
-        <h1 class="title">⚔️ WordDuel ⚔️</h1>
-        <div class="mode-selection">
-            <h2>Choose Your Battle Mode</h2>
-            <div class="mode-options">
-                <div class="mode-option">
-                    <button id="single-player-btn" class="primary-btn">🏰 Single Player</button>
-                    <p>Challenge the computer wizard in a medieval jousting tournament!</p>
-                </div>
-                <div class="mode-option">
-                    <button id="multiplayer-btn" class="primary-btn">⚔️ Multiplayer</button>
-                    <p>Duel against another player in real-time combat!</p>
+    <div id="mode-select-screen" class="page">
+        <div class="container">
+            <div class="card stack">
+                <h1 class="title">⚔️ WordDuel ⚔️</h1>
+                <div class="mode-selection">
+                    <h2>Choose Your Battle Mode</h2>
+                    <div class="mode-options cluster">
+                        <div class="mode-option">
+                            <button id="single-player-btn" class="primary-btn">🏰 Single Player</button>
+                            <p>Challenge the computer wizard in a medieval jousting tournament!</p>
+                        </div>
+                        <div class="mode-option">
+                            <button id="multiplayer-btn" class="primary-btn">⚔️ Multiplayer</button>
+                            <p>Duel against another player in real-time combat!</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Room Join Screen -->
-    <div id="room-join-screen" class="container" style="display:none;">
-        <h1 class="title">⚔️ WordDuel Multiplayer ⚔️</h1>
-        <div class="join-container">
-            <h2>Join a Duel</h2>
-            <div class="input-group">
-                <label for="player-name">Your Name:</label>
-                <input type="text" id="player-name" placeholder="Enter your name" maxlength="20" class="medieval-input">
-            </div>
-            <div class="input-group">
-                <label for="room-id">Room Code:</label>
-                <input type="text" id="room-id" placeholder="Enter a code" maxlength="6" class="medieval-input">
-            </div>
-            <!-- Theme Selection (for creator) -->
-            <div class="theme-selection" id="theme-selection-join">
-                <h3>Choose Theme:</h3>
-                <div id="theme-options-join" style="display: flex; gap: 24px; justify-content: center; margin: 20px 0;">
-                    <div class="theme-option-col">
-                        <input type="radio" name="theme-radio-join" value="0" id="theme-medieval-join" checked>
-                        <label for="theme-medieval-join" class="medieval-btn theme-btn">Medieval</label>
+    <div id="room-join-screen" class="page" style="display:none;">
+        <div class="container">
+            <div class="card stack">
+                <h1 class="title">⚔️ WordDuel Multiplayer ⚔️</h1>
+                <div class="join-container">
+                    <h2>Join a Duel</h2>
+                    <div class="join-grid" data-responsive="true">
+                        <div class="input-group">
+                            <label for="player-name">Your Name:</label>
+                            <input type="text" id="player-name" placeholder="Enter your name" maxlength="20" class="medieval-input">
+                        </div>
+                        <div class="input-group">
+                            <label for="room-id">Room Code:</label>
+                            <input type="text" id="room-id" placeholder="Enter a code" maxlength="6" class="medieval-input">
+                        </div>
                     </div>
-                    <div class="theme-option-col">
-                        <input type="radio" name="theme-radio-join" value="1" id="theme-scifi-join">
-                        <label for="theme-scifi-join" class="medieval-btn theme-btn">Sci-Fi</label>
+                    <!-- Theme Selection (for creator) -->
+                    <div class="theme-selection" id="theme-selection-join">
+                        <h3>Choose Theme:</h3>
+                        <div id="theme-options-join" class="cluster theme-buttons">
+                            <div class="theme-option-col">
+                                <input type="radio" name="theme-radio-join" value="0" id="theme-medieval-join" checked>
+                                <label for="theme-medieval-join" class="medieval-btn theme-btn">Medieval</label>
+                            </div>
+                            <div class="theme-option-col">
+                                <input type="radio" name="theme-radio-join" value="1" id="theme-scifi-join">
+                                <label for="theme-scifi-join" class="medieval-btn theme-btn">Sci-Fi</label>
+                            </div>
+                            <div class="theme-option-col">
+                                <input type="radio" name="theme-radio-join" value="2" id="theme-standard-join">
+                                <label for="theme-standard-join" class="medieval-btn theme-btn">Standard</label>
+                            </div>
+                        </div>
                     </div>
-                    <div class="theme-option-col">
-                        <input type="radio" name="theme-radio-join" value="2" id="theme-standard-join">
-                        <label for="theme-standard-join" class="medieval-btn theme-btn">Standard</label>
+                    
+                    <!-- Main action button -->
+                    <button id="enter-room-btn" class="primary-btn enter-room-btn">
+                        <span class="btn-text">Enter Room</span>
+                        <span class="btn-loading" style="display: none;">
+                            <span class="spinner"></span>
+                            <span class="loading-text">Joining...</span>
+                        </span>
+                    </button>
+                    
+                    <!-- Back button moved below -->
+                    <div class="back-section">
+                        <button id="back-to-mode" class="secondary-btn back-btn">Back to Mode Selection</button>
                     </div>
                 </div>
-            </div>
-            
-            <!-- Main action button -->
-            <button id="enter-room-btn" class="primary-btn enter-room-btn">
-                <span class="btn-text">Enter Room</span>
-                <span class="btn-loading" style="display: none;">
-                    <span class="spinner"></span>
-                    <span class="loading-text">Joining...</span>
-                </span>
-            </button>
-            
-
-            
-            <!-- Back button moved below -->
-            <div class="back-section">
-                <button id="back-to-mode" class="secondary-btn back-btn">Back to Mode Selection</button>
             </div>
         </div>
     </div>
@@ -119,8 +127,8 @@
                     </div>
                 </div>
                 
-                <div class="player-setup">
-                    <div class="knight-section player-section">
+                <div class="player-setup ws-grid" data-responsive="true">
+                    <div class="knight-section player-section ws-left">
                         <h3>🏰 Your Secret Word</h3>
                         <div class="word-selection">
                             <p>Select your secret word:</p>
@@ -132,7 +140,7 @@
                         <div class="jousting-lance">⚔️</div>
                     </div>
                     
-                    <div class="knight-section opponent-section">
+                    <div class="knight-section opponent-section ws-right">
                         <h3>👥 Opponent</h3>
                         <div class="opponent-status" id="opponent-status">
                             <div class="opponent-avatar">👤</div>
@@ -155,30 +163,31 @@
 
         <!-- Game Phase -->
         <div id="game-phase" class="game-phase hidden">
-            <div class="round-info">
-                <h2>Round <span id="round-number">1</span></h2>
-                <p id="round-status">Enter your guess below</p>
-            </div>
-            
-            <div class="game-boards">
-                <div class="player-board">
+            <div class="arena-grid" data-responsive="true">
+                <div class="round-info arena-status">
+                    <h2>Round <span id="round-number">1</span></h2>
+                    <p id="round-status">Enter your guess below</p>
+                </div>
+                
+                <div class="player-board arena-you">
                     <h4>🏰 Your Guesses</h4>
                     <div class="word-display" id="your-display"></div>
                     <div class="guess-history" id="your-history"></div>
                 </div>
-                <div class="player-board">
+                
+                <div class="player-board arena-opp">
                     <h4>👥 Opponent's Guesses</h4>
                     <div class="word-display" id="opponent-display"></div>
                     <div class="guess-history" id="opponent-history"></div>
                 </div>
-            </div>
 
-            <div class="input-section">
-                <div class="guess-input-container">
-                    <input type="text" id="guess-input" placeholder="Enter your guess..." maxlength="5" class="medieval-input">
-                    <button id="submit-guess" class="primary-btn" type="button">Submit Guess</button>
+                <div class="input-section arena-input">
+                    <div class="guess-input-container">
+                        <input type="text" id="guess-input" placeholder="Enter your guess..." maxlength="5" class="medieval-input">
+                        <button id="submit-guess" class="primary-btn" type="button">Submit Guess</button>
+                    </div>
+                    <div class="keyboard" id="keyboard"></div>
                 </div>
-                <div class="keyboard" id="keyboard"></div>
             </div>
         </div>
 
@@ -195,20 +204,21 @@
     </div>
 
     <!-- Waiting Screen -->
-    <div id="waiting-screen" class="container" style="display:none;">
-        <div class="waiting-container">
-            <h1 class="title">⏳ Waiting for Opponent</h1>
-            <div class="waiting-animation">⚔️</div>
-            <p>Share this room code with your opponent:</p>
-            <div class="room-code" id="waiting-room-code"></div>
-            <p>Waiting for another player to join...</p>
-            <div class="theme-info" id="theme-info">
-                <p>Theme: <span id="selected-theme">Medieval</span></p>
+    <div id="waiting-screen" class="page" style="display:none;">
+        <div class="container">
+            <div class="card stack">
+                <h1 class="title">⏳ Waiting for Opponent</h1>
+                <div class="waiting-animation">⚔️</div>
+                <p>Share this room code with your opponent:</p>
+                <div class="room-code" id="waiting-room-code"></div>
+                <p>Waiting for another player to join...</p>
+                <div class="theme-info" id="theme-info">
+                    <p>Theme: <span id="selected-theme">Medieval</span></p>
+                </div>
             </div>
         </div>
     </div>
 
     <script src="multiplayer.js" type="module"></script>
 </body>
-</html> 
 </html> 

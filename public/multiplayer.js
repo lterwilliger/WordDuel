@@ -133,6 +133,7 @@ const elements = {
     roomDisplay: document.getElementById('room-display'),
     waitingRoomCode: document.getElementById('waiting-room-code'),
     selectedTheme: document.getElementById('selected-theme'),
+    themeSelectionCreator: document.getElementById('theme-selection-creator'),
 
     setupPhase: document.getElementById('setup-phase'),
     gamePhase: document.getElementById('game-phase'),
@@ -167,6 +168,21 @@ function init() {
     
     showScreen('mode-select');
 }
+
+// Dev guardrail for layout detection
+function devAssertLayout() {
+    const appEl = document.querySelector('.container') || document.getElementById('game-root') || document.getElementById('root');
+    if (!appEl) return;
+    const w = appEl.getBoundingClientRect().width;
+    if (w < window.innerWidth * 0.6) {
+        console.warn('Layout too narrow; forcing anti-scale override');
+        document.body.classList.add('layout-bug');
+    } else {
+        document.body.classList.remove('layout-bug');
+    }
+}
+window.addEventListener('load', devAssertLayout);
+window.addEventListener('resize', devAssertLayout);
 
 // Event listeners
 function setupEventListeners() {
@@ -242,6 +258,28 @@ function backToModeSelect() {
 // Socket.io event handlers
 socket.on('connect', () => {
     console.log('Connected to server');
+    
+    // Set up fallback timeout for pending leave operations
+    if (gameState.waitingForLeaveConfirmation) {
+        setTimeout(() => {
+            if (gameState.waitingForLeaveConfirmation) {
+                console.log('Fallback: completing back to lobby after timeout');
+                const currentThemeIndex = gameState.themeIndex;
+                completeBackToLobby(currentThemeIndex);
+            }
+        }, 2000); // 2 second fallback
+    }
+});
+
+socket.on('disconnect', () => {
+    console.log('Disconnected from server');
+    
+    // If we were waiting to leave a room, complete the process
+    if (gameState.waitingForLeaveConfirmation) {
+        console.log('Connection lost while leaving room, completing back to lobby');
+        const currentThemeIndex = gameState.themeIndex;
+        completeBackToLobby(currentThemeIndex);
+    }
 });
 
 socket.on('game_state_update', (state) => {
@@ -281,9 +319,13 @@ socket.on('waiting_for_opponent', (data) => {
 socket.on('player_disconnected', (data) => {
     console.log('Player disconnected:', data);
     showMessage('Opponent disconnected', 'error');
-    setTimeout(() => {
-        backToLobby();
-    }, 3000);
+    
+    // Only auto-return to lobby if we're not already in the process of leaving
+    if (!gameState.waitingForLeaveConfirmation) {
+        setTimeout(() => {
+            backToLobby();
+        }, 3000);
+    }
 });
 
 socket.on('word_options', ({ wordOptions }) => {
@@ -292,6 +334,15 @@ socket.on('word_options', ({ wordOptions }) => {
     // Regenerate word options in UI if we're in setup phase
     if (gameState.phase === 'setup') {
         generateWordOptions();
+    }
+});
+
+socket.on('room_left', () => {
+    console.log('Room left confirmation received');
+    if (gameState.waitingForLeaveConfirmation) {
+        // Complete the back to lobby process
+        const currentThemeIndex = gameState.themeIndex;
+        completeBackToLobby(currentThemeIndex);
     }
 });
 
@@ -436,40 +487,158 @@ function generateRoomCode() {
 }
 
 function backToLobby() {
-    // Leave current room if in one
-    if (gameState.roomId) {
-        socket.emit('leave_room');
+    try {
+        // Prevent multiple clicks
+        if (gameState.waitingForLeaveConfirmation) {
+            return;
+        }
+        
+        // Store current theme before resetting
+        const currentThemeIndex = gameState.themeIndex;
+        
+        // Disable the back to lobby button to prevent multiple clicks
+        if (elements.backToLobbyBtn) {
+            elements.backToLobbyBtn.disabled = true;
+            elements.backToLobbyBtn.textContent = 'Leaving...';
+        }
+        
+        // Leave current room if in one
+        if (gameState.roomId) {
+            socket.emit('leave_room');
+            // Wait for server confirmation instead of arbitrary timeout
+            gameState.waitingForLeaveConfirmation = true;
+        } else {
+            completeBackToLobby(currentThemeIndex);
+        }
+    } catch (error) {
+        console.error('Error in backToLobby:', error);
+        // Fallback: try to complete the process anyway
+        const currentThemeIndex = gameState.themeIndex || 0;
+        completeBackToLobby(currentThemeIndex);
     }
-    
-    // Reset game state
-    gameState = {
-        roomId: null,
-        playerName: null,
-        themeIndex: 0,
-        phase: 'lobby',
-        players: [],
-        round: 1,
-        maxRounds: 6,
-        currentRoundGuesses: 0,
-        gameComplete: false,
-        mySecretWord: null,
-        myGuesses: [],
-        opponentGuesses: [],
-        roundResults: null,
-        isRoomCreator: false,
-        myGuessFeedbacks: [],
-        opponentGuessFeedbacks: []
-    };
-    
-    // Clear any locked inputs
-    elements.guessInput.classList.remove('locked');
-    elements.guessInput.readOnly = false;
-    elements.guessInput.disabled = false;
-    elements.submitGuessBtn.disabled = false;
-    
-    // Go back to room join screen
-    showScreen('room-join');
-    updateUI();
+}
+
+function completeBackToLobby(themeIndex) {
+    try {
+        // Reset game state but preserve theme preference
+        gameState = {
+            roomId: null,
+            playerName: null,
+            themeIndex: themeIndex, // Preserve theme selection
+            phase: 'lobby',
+            players: [],
+            round: 1,
+            maxRounds: 6,
+            currentRoundGuesses: 0,
+            gameComplete: false,
+            mySecretWord: null,
+            myGuesses: [],
+            opponentGuesses: [],
+            roundResults: null,
+            isRoomCreator: false,
+            myGuessFeedbacks: [],
+            opponentGuessFeedbacks: [],
+            wordSubmitted: false,
+            waitingForLeaveConfirmation: false
+        };
+        
+        // Clear any locked inputs
+        if (elements.guessInput) {
+            elements.guessInput.classList.remove('locked');
+            elements.guessInput.readOnly = false;
+            elements.guessInput.disabled = false;
+        }
+        if (elements.submitGuessBtn) {
+            elements.submitGuessBtn.disabled = false;
+        }
+        
+        // Restore back to lobby button state
+        if (elements.backToLobbyBtn) {
+            elements.backToLobbyBtn.disabled = false;
+            elements.backToLobbyBtn.textContent = 'Back to Lobby';
+        }
+        
+        // Restore theme selection UI
+        restoreThemeSelection(themeIndex);
+        
+        // Go back to room join screen
+        showScreen('room-join');
+        updateUI();
+    } catch (error) {
+        console.error('Error in completeBackToLobby:', error);
+        // Fallback: try to show the room join screen anyway
+        try {
+            showScreen('room-join');
+        } catch (fallbackError) {
+            console.error('Fallback error:', fallbackError);
+        }
+    }
+}
+
+function restoreThemeSelection(themeIndex) {
+    try {
+        // Restore theme selection radio button
+        const themeRadios = document.querySelectorAll('input[name="theme-radio-join"]');
+        if (themeRadios[themeIndex]) {
+            themeRadios[themeIndex].checked = true;
+        }
+        
+        // Apply the theme immediately
+        const theme = THEMES[themeIndex];
+        if (theme) {
+            applyTheme(theme);
+        }
+        
+        // Update the theme selection UI visibility based on whether user will be creator
+        // When going back to lobby, we don't know yet if they'll be creator, so show it
+        const themeSelectionJoin = document.getElementById('theme-selection-join');
+        if (themeSelectionJoin) {
+            themeSelectionJoin.style.display = '';
+        }
+        
+        // Ensure theme selection event listeners are properly set up
+        themeRadios.forEach((radio, idx) => {
+            // Remove existing listeners to prevent duplicates
+            if (radio._themeChangeHandler) {
+                radio.removeEventListener('change', radio._themeChangeHandler);
+            }
+            
+            // Add new listener
+            radio._themeChangeHandler = () => {
+                const selectedTheme = THEMES[idx];
+                if (selectedTheme) {
+                    gameState.themeIndex = idx;
+                    applyTheme(selectedTheme);
+                }
+            };
+            radio.addEventListener('change', radio._themeChangeHandler);
+        });
+    } catch (error) {
+        console.error('Error in restoreThemeSelection:', error);
+        // Fallback: just apply the theme
+        const theme = THEMES[themeIndex];
+        if (theme) {
+            applyTheme(theme);
+        }
+    }
+}
+
+// Helper functions for button state management
+function canStartDuel() {
+  return gameState.phase === 'setup'
+      && !!gameState.mySecretWord
+      && !gameState.wordSubmitted;
+}
+
+function applyStartButtonState() {
+  if (!elements.startGameBtn) return;
+  elements.startGameBtn.disabled = !canStartDuel();
+  const theme = THEMES[gameState.themeIndex] || THEMES[0];
+  if (gameState.wordSubmitted) {
+    elements.startGameBtn.textContent = 'Waiting for opponent...';
+  } else {
+    elements.startGameBtn.textContent = theme.duelBtn;
+  }
 }
 
 // Game state management
@@ -536,7 +705,9 @@ function updateGameState(state) {
         if (elements.startGameBtn) {
             elements.startGameBtn.disabled = true;
             const theme = THEMES[gameState.themeIndex];
-            elements.startGameBtn.textContent = theme.duelBtn;
+            if (theme) {
+                elements.startGameBtn.textContent = theme.duelBtn;
+            }
         }
     }
     // Save previous phase globally for setup phase logic
@@ -558,19 +729,23 @@ function resetInputState() {
     if (hasSolved) {
         console.log('Player has solved - keeping input locked');
         // Keep input locked if player has solved
-        elements.guessInput.classList.add('locked');
-        elements.guessInput.readOnly = true;
-        elements.guessInput.disabled = true;
-        elements.submitGuessBtn.disabled = true;
+        if (elements.guessInput) {
+            elements.guessInput.classList.add('locked');
+            elements.guessInput.readOnly = true;
+            elements.guessInput.disabled = true;
+        }
+        if (elements.submitGuessBtn) elements.submitGuessBtn.disabled = true;
     } else {
         console.log('Player hasn\'t solved - enabling input for new round');
         // Enable input for new round
-        elements.guessInput.classList.remove('locked');
-        elements.guessInput.readOnly = false;
-        elements.guessInput.disabled = false;
-        elements.submitGuessBtn.disabled = false;
-        elements.guessInput.value = '';
-        elements.roundStatus.textContent = 'Enter your guess below';
+        if (elements.guessInput) {
+            elements.guessInput.classList.remove('locked');
+            elements.guessInput.readOnly = false;
+            elements.guessInput.disabled = false;
+            elements.guessInput.value = '';
+        }
+        if (elements.submitGuessBtn) elements.submitGuessBtn.disabled = false;
+        if (elements.roundStatus) elements.roundStatus.textContent = 'Enter your guess below';
     }
 }
 
@@ -610,7 +785,7 @@ function updateOpponentStatus() {
                 }
             }
         }
-    } else {
+    } else if (elements.opponentStatus) {
         elements.opponentStatus.classList.remove('ready');
         if (opponentNameEl) {
             opponentNameEl.textContent = 'Waiting for opponent...';
@@ -675,8 +850,8 @@ function updateUI() {
     applyTheme(theme);
     
     // Update room info
-    elements.roomDisplay.textContent = gameState.roomId;
-    elements.currentRound.textContent = gameState.round;
+    if (elements.roomDisplay) elements.roomDisplay.textContent = gameState.roomId;
+    if (elements.currentRound) elements.currentRound.textContent = gameState.round;
     
     // Update phase
     switch (gameState.phase) {
@@ -701,7 +876,7 @@ function updateUI() {
     if (opponentBoardHeader) opponentBoardHeader.textContent = theme.opponentLabel;
     
     // Update theme info in waiting screen
-    elements.selectedTheme.textContent = theme.name;
+    if (elements.selectedTheme) elements.selectedTheme.textContent = theme.name;
     updateRoomJoinThemeUI();
     updateRoomTotalScore();
     
@@ -711,14 +886,14 @@ function updateUI() {
 
 function updateWaitingScreen() {
     // Show theme selection for room creators
-    if (gameState.isRoomCreator) {
+    if (gameState.isRoomCreator && elements.themeSelectionCreator) {
         elements.themeSelectionCreator.style.display = 'block';
         // Update radio button to match current theme
         const radio = document.querySelector(`input[name="theme-radio-creator"][value="${gameState.themeIndex}"]`);
         if (radio) {
             radio.checked = true;
         }
-    } else {
+    } else if (elements.themeSelectionCreator) {
         elements.themeSelectionCreator.style.display = 'none';
     }
     
@@ -734,15 +909,19 @@ function updateWaitingScreen() {
 
 function updateThemeDisplay() {
     const theme = THEMES[gameState.themeIndex];
-    elements.selectedTheme.textContent = theme.name;
+    if (elements.selectedTheme && theme) {
+        elements.selectedTheme.textContent = theme.name;
+    }
 }
 
 function updateSetupPhase() {
     console.log('=== updateSetupPhase called ===');
-    console.log('Current word options count:', elements.playerOptions.children.length);
+    console.log('Current word options count:', elements.playerOptions?.children?.length || 0);
     console.log('Current mySecretWord:', gameState.mySecretWord);
     console.log('Word submitted:', gameState.wordSubmitted);
     console.log('Word options from server:', gameState.wordOptions);
+    
+    if (!elements.playerOptions) return;
     
     // Regenerate word options if:
     // 1. Previous phase was 'results' (new game)
@@ -790,19 +969,19 @@ function updateSetupPhase() {
 function updateGamePhase() {
     console.log('=== updateGamePhase called ===');
     
-    elements.roundNumber.textContent = gameState.round;
+    if (elements.roundNumber) elements.roundNumber.textContent = gameState.round;
     const myPlayer = gameState.players.find(p => p.id === socket.id);
     const hasSolved = myPlayer && myPlayer.hasWon;
 
     if (gameState.roundResults) {
         // Show round results
-        elements.roundStatus.textContent = 'Round complete!';
+        if (elements.roundStatus) elements.roundStatus.textContent = 'Round complete!';
         updateRoundResults(gameState.roundResults);
     } else {
         // Show waiting status - only show waiting if we've already submitted
         const waitingText = gameState.currentRoundGuesses > 0 ? 
             'Waiting for opponent...' : 'Enter your guess below';
-        elements.roundStatus.textContent = waitingText;
+        if (elements.roundStatus) elements.roundStatus.textContent = waitingText;
     }
     
     // Update displays
@@ -814,32 +993,40 @@ function updateGamePhase() {
     if (hasSolved) {
         // This player has solved - lock their input
         console.log('Player has solved - locking input');
-        elements.guessInput.classList.add('locked');
-        elements.guessInput.readOnly = true;
-        elements.guessInput.disabled = true;
-        elements.submitGuessBtn.disabled = true;
-        elements.roundStatus.textContent = 'You solved it! Waiting for opponent...';
+        if (elements.guessInput) {
+            elements.guessInput.classList.add('locked');
+            elements.guessInput.readOnly = true;
+            elements.guessInput.disabled = true;
+        }
+        if (elements.submitGuessBtn) elements.submitGuessBtn.disabled = true;
+        if (elements.roundStatus) elements.roundStatus.textContent = 'You solved it! Waiting for opponent...';
     } else {
         // This player hasn't solved yet
         if (gameState.currentRoundGuesses > 0) {
             // We've already submitted this round - wait for opponent
             console.log('Already submitted this round - waiting for opponent');
-            elements.guessInput.classList.add('locked');
-            elements.guessInput.readOnly = true;
-            elements.submitGuessBtn.disabled = true;
+            if (elements.guessInput) {
+                elements.guessInput.classList.add('locked');
+                elements.guessInput.readOnly = true;
+            }
+            if (elements.submitGuessBtn) elements.submitGuessBtn.disabled = true;
         } else {
             // New round or haven't submitted yet - enable input
             console.log('New round or haven\'t submitted - enabling input');
-            elements.guessInput.classList.remove('locked');
-            elements.guessInput.readOnly = false;
-            elements.guessInput.disabled = false;
-            elements.submitGuessBtn.disabled = false;
-            elements.guessInput.value = '';
+            if (elements.guessInput) {
+                elements.guessInput.classList.remove('locked');
+                elements.guessInput.readOnly = false;
+                elements.guessInput.disabled = false;
+                elements.guessInput.value = '';
+            }
+            if (elements.submitGuessBtn) elements.submitGuessBtn.disabled = false;
         }
     }
 }
 
 function updateResultsPhase() {
+    if (!elements.winnerAnnouncement) return;
+    
     const players = gameState.players;
     const opponentName = getOpponentName();
     
@@ -876,6 +1063,8 @@ function updateResultsPhase() {
 
 // Word selection
 function generateWordOptions() {
+    if (!elements.playerOptions) return;
+    
     // Always use word options from server
     let options = gameState.wordOptions;
     
@@ -901,6 +1090,8 @@ function generateWordOptions() {
 function selectWord(word) {
     console.log('=== selectWord called ===');
     console.log('Word selected:', word);
+    
+    if (!word) return;
     
     // Clear previous selections
     document.querySelectorAll('.word-option').forEach(opt => opt.classList.remove('selected'));
@@ -942,7 +1133,7 @@ function selectWord(word) {
 function startGame() {
     console.log('=== startGame called ===');
     console.log('My secret word:', gameState.mySecretWord);
-    console.log('Button disabled:', elements.startGameBtn.disabled);
+    console.log('Button disabled:', elements.startGameBtn?.disabled);
     console.log('Word already submitted:', gameState.wordSubmitted);
     
     if (!gameState.mySecretWord) {
@@ -950,7 +1141,7 @@ function startGame() {
         return;
     }
     
-    if (elements.startGameBtn.disabled) {
+    if (!elements.startGameBtn || elements.startGameBtn.disabled) {
         console.log('Button is disabled!');
         return;
     }
@@ -981,6 +1172,8 @@ function startGame() {
 function submitGuess() {
     console.log('=== submitGuess called ===');
     
+    if (!elements.guessInput || !elements.submitGuessBtn) return;
+    
     const guess = elements.guessInput.value.toUpperCase().trim();
     console.log('Guess submitted:', guess);
     
@@ -1001,7 +1194,9 @@ function submitGuess() {
     elements.guessInput.classList.add('locked');
     elements.guessInput.readOnly = true;
     elements.submitGuessBtn.disabled = true;
-    elements.roundStatus.textContent = 'Waiting for opponent...';
+    if (elements.roundStatus) {
+        elements.roundStatus.textContent = 'Waiting for opponent...';
+    }
     
     console.log('Input locked after submission');
 }
@@ -1064,6 +1259,9 @@ function updateRoundResults(results) {
 function updateGuessDisplay(player) {
     const displayElement = document.getElementById(`${player}-display`);
     const historyElement = document.getElementById(`${player}-history`);
+    
+    if (!displayElement || !historyElement) return;
+    
     let correctLetters = Array(5).fill('');
     if (player === 'your') {
         (gameState.myGuessFeedbacks || []).forEach(result => {
@@ -1132,6 +1330,8 @@ function updateGameBoards() {
 }
 
 function updateFinalScores() {
+    if (!elements.finalScores) return;
+    
     elements.finalScores.innerHTML = '';
     const opponentName = getOpponentName();
     gameState.players.forEach(player => {
@@ -1150,7 +1350,9 @@ function updateFinalScores() {
 }
 
 function updateWaitingStatus(data) {
-    elements.currentStatus.textContent = `Waiting for opponent... (${data.submittedPlayers}/${data.totalPlayers})`;
+    if (elements.currentStatus) {
+        elements.currentStatus.textContent = `Waiting for opponent... (${data.submittedPlayers}/${data.totalPlayers})`;
+    }
 }
 
 function updateKeyboardColors() {
@@ -1172,6 +1374,8 @@ function updateKeyboardColors() {
     });
     // Update keyboard
     const keys = document.querySelectorAll('.key');
+    if (keys.length === 0) return;
+    
     keys.forEach(key => {
         const letter = key.textContent;
         key.classList.remove('correct', 'partial', 'incorrect');
@@ -1218,11 +1422,8 @@ function showPhase(phase) {
 }
 
 function createKeyboard() {
-    const rows = [
-        ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
-        ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
-        ['Z', 'X', 'C', 'V', 'B', 'N', 'M']
-    ];
+    // responsive: grid layout instead of rows
+    const letters = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', 'A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Z', 'X', 'C', 'V', 'B', 'N', 'M'];
     
     rows.forEach(row => {
         const rowElement = document.createElement('div');
@@ -1243,6 +1444,8 @@ function createKeyboard() {
 }
 
 function handleKeyClick(letter) {
+    if (!elements.guessInput) return;
+    
     const currentValue = elements.guessInput.value;
     if (currentValue.length < 5) {
         elements.guessInput.value = currentValue + letter;
@@ -1250,6 +1453,8 @@ function handleKeyClick(letter) {
 }
 
 function showMessage(message, type = 'info') {
+    if (!message) return;
+    
     const messageElement = document.createElement('div');
     messageElement.style.cssText = `
         position: fixed;
@@ -1270,7 +1475,9 @@ function showMessage(message, type = 'info') {
     document.body.appendChild(messageElement);
     
     setTimeout(() => {
-        messageElement.remove();
+        if (messageElement.parentNode) {
+            messageElement.remove();
+        }
     }, 3000);
 }
 
@@ -1283,10 +1490,15 @@ function playAgain() {
 
 // Hide theme selection for joiners
 function updateRoomJoinThemeUI() {
-    if (gameState.isRoomCreator) {
-        document.getElementById('theme-selection-join').style.display = '';
+    const themeSelectionJoin = document.getElementById('theme-selection-join');
+    if (!themeSelectionJoin) return;
+    
+    // When going back to lobby, we don't know yet if they'll be creator, so show it
+    // Only hide it when we're actively in a room and know the user is not the creator
+    if (gameState.roomId && !gameState.isRoomCreator) {
+        themeSelectionJoin.style.display = 'none';
     } else {
-        document.getElementById('theme-selection-join').style.display = 'none';
+        themeSelectionJoin.style.display = '';
     }
 }
 

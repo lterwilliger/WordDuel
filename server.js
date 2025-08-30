@@ -530,27 +530,29 @@ io.on('connection', (socket) => {
                 game.removePlayer(socket.id);
                 game.lastActivity = Date.now(); // Update activity timestamp
                 
-                // If no players left, remove game
+                // If no players left, remove game immediately
                 if (game.players.size === 0) {
-                    game.active = false; // Mark as inactive for cleanup
                     games.delete(player.roomId);
                     console.log(`Game ${player.roomId} removed due to no players`);
                 } else {
-                    // Notify remaining players
+                    // Notify remaining players immediately
                     io.to(player.roomId).emit('player_disconnected', { playerId: socket.id });
                     io.to(player.roomId).emit('game_state_update', game.getGameState());
                     
-                    // Schedule cleanup for inactive game
+                    // Schedule cleanup for inactive game (reduced timeout)
                     setTimeout(() => {
                         if (!game.active) {
                             games.delete(player.roomId);
                             console.log(`Cleaned up inactive game: ${player.roomId}`);
                         }
-                    }, 10 * 60 * 1000); // 10 minutes
+                    }, 5 * 60 * 1000); // 5 minutes instead of 10
                 }
             }
             
             players.delete(socket.id);
+            
+            // Send confirmation back to the leaving player
+            socket.emit('room_left');
         }
     });
 });
